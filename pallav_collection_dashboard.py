@@ -1,113 +1,105 @@
-# app.py
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import os
-import json
-from datetime import datetime, timedelta
+import io
+from datetime import datetime
 
-st.set_page_config(page_title="📊 BPO Dashboard", layout="wide")
+st.set_page_config(page_title="📊 BPO Collection Dashboard", layout="wide")
 
-# --- Auto Header Mapping ---
-HEADER_MAPPING = {
-    "loanid": "Loan_ID",
-    "loan_id": "Loan_ID",
-    "allocatedamount": "Allocated_Amount",
-    "allocated_amount": "Allocated_Amount",
-    "paidamount": "Paid_Amount",
-    "paid_amount": "Paid_Amount",
-    "paymentdate": "Payment_Date",
-    "payment_date": "Payment_Date",
-    "bucket": "Bucket",
-    "agency": "Agency",
-    "agent name": "Agent_Name"
-}
+st.title("📊 Collection BPO Dashboard")
+st.info("Continue uploading allocation and paid files per process below...")
 
+# --- Helper Functions ---
 def clean_headers(df):
-    df.columns = [HEADER_MAPPING.get(col.strip().lower().replace(" ", "_"), col.strip().title().replace(" ", "_")) for col in df.columns]
+    df.columns = [col.strip().replace(" ", "_").title() for col in df.columns]
     return df
 
-# --- Auth ---
-def authenticate(email, password):
-    return email == "jjagarbattiudyog@gmail.com" and password == "Sanu@1998"
+def combine_files(file_list):
+    df_list = []
+    for file in file_list:
+        df = pd.read_excel(file)
+        df = clean_headers(df)
+        df_list.append(df)
+    if df_list:
+        return pd.concat(df_list, ignore_index=True)
+    return pd.DataFrame()
 
-if 'authenticated' not in st.session_state:
-    st.session_state.authenticated = False
+# --- Sidebar Controls ---
+st.sidebar.subheader("👤 Upload Agent Performance")
+agent_file = st.sidebar.file_uploader("Upload Agent Performance Excel", type=["xlsx"], key="agent")
 
-if not st.session_state.authenticated:
-    st.title("🔐 Login Required")
-    email = st.text_input("Email")
-    password = st.text_input("Password", type="password")
-    if st.button("Login"):
-        if authenticate(email, password):
-            st.session_state.authenticated = True
-            st.success("✅ Login successful")
-            st.rerun()
-        else:
-            st.error("❌ Invalid credentials")
-else:
-    st.title("📊 Collection Dashboard")
-    st.sidebar.header("📁 Upload Section")
+st.sidebar.subheader("📁 Upload Allocation Files")
+alloc_files = st.sidebar.file_uploader("Upload Allocation Files", type=["xlsx"], accept_multiple_files=True, key="alloc")
 
-    # Agent File Upload
-    st.sidebar.subheader("👤 Agent Performance")
-    agent_file = st.sidebar.file_uploader("Upload Agent File", type=["xlsx"])
-    df_agent = pd.DataFrame()
-    if agent_file:
-        df_agent = pd.read_excel(agent_file)
-        df_agent = clean_headers(df_agent)
-        st.subheader("👤 Agent Performance Data")
-        st.dataframe(df_agent)
+st.sidebar.subheader("📅 Upload Current Month Paid")
+paid_current_files = st.sidebar.file_uploader("Upload Current Paid Files", type=["xlsx"], accept_multiple_files=True, key="paid_current")
 
-        if 'Agent_Name' in df_agent.columns and 'Score' in df_agent.columns:
-            fig = px.bar(df_agent, x="Agent_Name", y="Score", color="Week", title="Agent Score by Week")
-            st.plotly_chart(fig, use_container_width=True)
+st.sidebar.subheader("🗓 Upload Previous Months Paid")
+paid_prev_files = st.sidebar.file_uploader("Upload Previous Paid Files", type=["xlsx"], accept_multiple_files=True, key="paid_prev")
 
-            fig_bytes = fig.to_image(format="png")
-            st.download_button("📥 Download Chart as PNG", data=fig_bytes, file_name="agent_chart.png")
+# --- Agent Performance Logic ---
+if agent_file:
+    df_agent = pd.read_excel(agent_file)
+    df_agent = clean_headers(df_agent)
+    st.subheader("📋 Agent Performance Data")
+    st.dataframe(df_agent, use_container_width=True)
 
-        cleaned_bytes = df_agent.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Download Cleaned Agent Data", data=cleaned_bytes, file_name="cleaned_agent_data.csv")
+    if 'Agent_Name' in df_agent.columns and 'Score' in df_agent.columns:
+        fig = px.bar(df_agent, x="Agent_Name", y="Score", color="Week", title="Agent Score by Week")
+        st.plotly_chart(fig, use_container_width=True)
 
-    # Allocation and Paid Files
-    st.sidebar.subheader("📤 Allocation + Paid Files")
-    alloc_file = st.sidebar.file_uploader("Allocation File", type=["xlsx"])
-    paid_file = st.sidebar.file_uploader("Paid File", type=["xlsx"])
+        fig_bytes = fig.to_image(format="png")
+        st.download_button("📥 Download Chart as PNG", data=fig_bytes, file_name="agent_chart.png")
 
-    df_alloc, df_paid = pd.DataFrame(), pd.DataFrame()
-    if alloc_file:
-        df_alloc = pd.read_excel(alloc_file)
-        df_alloc = clean_headers(df_alloc)
-    if paid_file:
-        df_paid = pd.read_excel(paid_file)
-        df_paid = clean_headers(df_paid)
+        excel_out = io.BytesIO()
+        df_agent.to_excel(excel_out, index=False)
+        st.download_button("📥 Download Cleaned Agent Data", data=excel_out.getvalue(), file_name="cleaned_agent_data.xlsx")
 
-    if not df_alloc.empty and not df_paid.empty:
-        df = pd.merge(df_alloc, df_paid, on="Loan_ID", how="left")
-        df['Paid_Amount'] = df['Paid_Amount'].fillna(0)
-        df['Recovery_%'] = (df['Paid_Amount'] / df['Allocated_Amount'] * 100).round(2)
-        df['Balance'] = df['Allocated_Amount'] - df['Paid_Amount']
+# --- Allocation and Paid Logic ---
+df_alloc = combine_files(alloc_files)
+df_paid_current = combine_files(paid_current_files)
+df_paid_prev = combine_files(paid_prev_files)
 
-        st.subheader("📊 Summary Table")
-        st.dataframe(df)
+if not df_alloc.empty:
+    st.subheader("📄 Allocation File")
+    st.dataframe(df_alloc)
 
-        st.metric("Total Allocated", f"₹{df['Allocated_Amount'].sum():,.0f}")
-        st.metric("Total Paid", f"₹{df['Paid_Amount'].sum():,.0f}")
-        st.metric("Recovery %", f"{df['Recovery_%'].mean():.2f}%")
+if not df_paid_current.empty:
+    st.subheader("📄 Current Paid File")
+    st.dataframe(df_paid_current)
 
-        if 'Bucket' in df.columns:
-            bucket_df = df.groupby('Bucket').agg({
-                'Allocated_Amount': 'sum',
-                'Paid_Amount': 'sum'
-            }).reset_index()
-            bucket_df['Recovery_%'] = (bucket_df['Paid_Amount'] / bucket_df['Allocated_Amount'] * 100).round(2)
-            st.subheader("📊 Recovery % by Bucket")
-            st.plotly_chart(px.bar(bucket_df, x='Bucket', y='Recovery_%', color='Bucket', text='Recovery_%'))
+if not df_paid_prev.empty:
+    st.subheader("📄 Previous Paid File")
+    st.dataframe(df_paid_prev)
 
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Download Final Merged Data", csv, file_name="recovery_summary.csv")
+if not df_alloc.empty and (not df_paid_current.empty or not df_paid_prev.empty):
+    df_paid_all = pd.concat([df_paid_current, df_paid_prev], ignore_index=True)
+    df_merged = pd.merge(df_alloc, df_paid_all, on='Loan_Id', how='left')
+    df_merged['Paid_Amount'] = df_merged['Paid_Amount'].fillna(0)
+    df_merged['Recovery_%'] = (df_merged['Paid_Amount'] / df_merged['Allocated_Amount'] * 100).round(2)
+    df_merged['Balance'] = df_merged['Allocated_Amount'] - df_merged['Paid_Amount']
 
-    st.sidebar.markdown("---")
-    if st.sidebar.button("🔓 Logout"):
-        st.session_state.authenticated = False
-        st.rerun()
+    st.subheader("📊 Merged Data")
+    st.dataframe(df_merged)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Total Allocated", f"₹{df_merged['Allocated_Amount'].sum():,.0f}")
+        st.metric("Total Paid", f"₹{df_merged['Paid_Amount'].sum():,.0f}")
+    with col2:
+        st.metric("Recovery %", f"{df_merged['Recovery_%'].mean():.2f}%")
+        st.metric("Total Balance", f"₹{df_merged['Balance'].sum():,.0f}")
+
+    if 'Bucket' in df_merged.columns:
+        bucket_df = df_merged.groupby('Bucket')[['Allocated_Amount','Paid_Amount']].sum().reset_index()
+        bucket_df['Recovery_%'] = (bucket_df['Paid_Amount'] / bucket_df['Allocated_Amount'] * 100).round(2)
+        fig_bucket = px.bar(bucket_df, x='Bucket', y='Recovery_%', color='Bucket', text='Recovery_%')
+        st.plotly_chart(fig_bucket, use_container_width=True)
+
+        fig_bytes = fig_bucket.to_image(format="png")
+        st.download_button("📥 Download Bucket Chart", data=fig_bytes, file_name="bucket_chart.png")
+
+    merged_out = io.BytesIO()
+    df_merged.to_excel(merged_out, index=False)
+    st.download_button("📥 Download Merged File", data=merged_out.getvalue(), file_name="merged_collection.xlsx")
