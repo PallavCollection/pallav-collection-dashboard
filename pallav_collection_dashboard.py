@@ -1,3 +1,4 @@
+# app.py
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -5,7 +6,9 @@ import os
 import json
 from datetime import datetime, timedelta
 
-# --- Auto Header Fixer ---
+st.set_page_config(page_title="📊 BPO Dashboard", layout="wide")
+
+# --- Auto Header Mapping ---
 HEADER_MAPPING = {
     "loanid": "Loan_ID",
     "loan_id": "Loan_ID",
@@ -17,111 +20,94 @@ HEADER_MAPPING = {
     "payment_date": "Payment_Date",
     "bucket": "Bucket",
     "agency": "Agency",
-    "agentname": "Agent_Name",
-    "agent_name": "Agent_Name"
+    "agent name": "Agent_Name"
 }
 
 def clean_headers(df):
-    df.columns = [HEADER_MAPPING.get(col.strip().lower().replace(" ", "_"), col.strip().replace(" ", "_")) for col in df.columns]
+    df.columns = [HEADER_MAPPING.get(col.strip().lower().replace(" ", "_"), col.strip().title().replace(" ", "_")) for col in df.columns]
     return df
 
-# --- Paths and Files ---
-SESSION_FILE = "session_data.json"
-CACHE_DIR = "cache"
-CONFIG_FILE = os.path.join(CACHE_DIR, "config.json")
-os.makedirs(CACHE_DIR, exist_ok=True)
-
-# --- Persistent Config ---
-def load_config():
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, 'r') as f:
-            return json.load(f)
-    return {"process_count": 1, "process_names": {}}
-
-def save_config(config):
-    with open(CONFIG_FILE, 'w') as f:
-        json.dump(config, f)
-
-config = load_config()
-
-# --- Session Handling ---
-def load_session():
-    if os.path.exists(SESSION_FILE):
-        with open(SESSION_FILE, 'r') as f:
-            return json.load(f)
-    return {}
-
-def save_session(data):
-    with open(SESSION_FILE, 'w') as f:
-        json.dump(data, f)
-
 # --- Auth ---
-def authenticate_user(email, password):
+def authenticate(email, password):
     return email == "jjagarbattiudyog@gmail.com" and password == "Sanu@1998"
 
-session_data = load_session()
-now = datetime.now()
-
 if 'authenticated' not in st.session_state:
-    last_login_str = session_data.get('last_login')
-    if last_login_str:
-        last_login = datetime.strptime(last_login_str, "%Y-%m-%d %H:%M:%S")
-        if now - last_login < timedelta(hours=24):
-            st.session_state.authenticated = True
-            st.session_state.user_email = session_data.get('user_email', '')
-        else:
-            st.session_state.authenticated = False
-    else:
-        st.session_state.authenticated = False
+    st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
-    st.title("🔐 Secure Access")
+    st.title("🔐 Login Required")
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
-    login_btn = st.button("Login")
-
-    if login_btn:
-        if authenticate_user(email, password):
+    if st.button("Login"):
+        if authenticate(email, password):
             st.session_state.authenticated = True
-            st.session_state.user_email = email
-            session_data = {'last_login': now.strftime("%Y-%m-%d %H:%M:%S"), 'user_email': email}
-            save_session(session_data)
-            st.success("✅ Logged in successfully!")
+            st.success("✅ Login successful")
             st.rerun()
         else:
-            st.error("❌ Invalid credentials. View-only mode enabled.")
+            st.error("❌ Invalid credentials")
 else:
-    st.set_page_config(page_title="✨ Beautiful Collection Dashboard", layout="wide")
-    st.markdown("<h1 style='text-align: center; color: navy;'>📊 Collection BPO Dashboard</h1>", unsafe_allow_html=True)
+    st.title("📊 Collection Dashboard")
+    st.sidebar.header("📁 Upload Section")
 
-    is_editor = st.session_state.user_email == "jjagarbattiudyog@gmail.com"
-
-    if is_editor:
-        with st.sidebar:
-            if st.button("➕ Add Process"):
-                config['process_count'] += 1
-                save_config(config)
-            if config['process_count'] > 1 and st.button("➖ Remove Process"):
-                config['process_count'] -= 1
-                save_config(config)
-
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("👤 Upload Agent Performance")
-    agent_file = st.sidebar.file_uploader("Upload Agent Performance Excel", type=["xlsx"])
+    # Agent File Upload
+    st.sidebar.subheader("👤 Agent Performance")
+    agent_file = st.sidebar.file_uploader("Upload Agent File", type=["xlsx"])
+    df_agent = pd.DataFrame()
     if agent_file:
-        agent_df = pd.read_excel(agent_file)
-        agent_df = clean_headers(agent_df)
+        df_agent = pd.read_excel(agent_file)
+        df_agent = clean_headers(df_agent)
+        st.subheader("👤 Agent Performance Data")
+        st.dataframe(df_agent)
 
-        st.subheader("👤 Agent Performance")
-        st.dataframe(agent_df, use_container_width=True)
-
-        if "Agent_Name" in agent_df.columns and "Score" in agent_df.columns:
-            fig = px.bar(agent_df, x="Agent_Name", y="Score", color="Rank", title="Agent Scores")
+        if 'Agent_Name' in df_agent.columns and 'Score' in df_agent.columns:
+            fig = px.bar(df_agent, x="Agent_Name", y="Score", color="Week", title="Agent Score by Week")
             st.plotly_chart(fig, use_container_width=True)
-            csv = agent_df.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Download Agent Report", csv, file_name="agent_report.csv")
-        else:
-            st.warning("⚠️ Required columns missing: 'Agent_Name' and 'Score'")
+
+            fig_bytes = fig.to_image(format="png")
+            st.download_button("📥 Download Chart as PNG", data=fig_bytes, file_name="agent_chart.png")
+
+        cleaned_bytes = df_agent.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Download Cleaned Agent Data", data=cleaned_bytes, file_name="cleaned_agent_data.csv")
+
+    # Allocation and Paid Files
+    st.sidebar.subheader("📤 Allocation + Paid Files")
+    alloc_file = st.sidebar.file_uploader("Allocation File", type=["xlsx"])
+    paid_file = st.sidebar.file_uploader("Paid File", type=["xlsx"])
+
+    df_alloc, df_paid = pd.DataFrame(), pd.DataFrame()
+    if alloc_file:
+        df_alloc = pd.read_excel(alloc_file)
+        df_alloc = clean_headers(df_alloc)
+    if paid_file:
+        df_paid = pd.read_excel(paid_file)
+        df_paid = clean_headers(df_paid)
+
+    if not df_alloc.empty and not df_paid.empty:
+        df = pd.merge(df_alloc, df_paid, on="Loan_ID", how="left")
+        df['Paid_Amount'] = df['Paid_Amount'].fillna(0)
+        df['Recovery_%'] = (df['Paid_Amount'] / df['Allocated_Amount'] * 100).round(2)
+        df['Balance'] = df['Allocated_Amount'] - df['Paid_Amount']
+
+        st.subheader("📊 Summary Table")
+        st.dataframe(df)
+
+        st.metric("Total Allocated", f"₹{df['Allocated_Amount'].sum():,.0f}")
+        st.metric("Total Paid", f"₹{df['Paid_Amount'].sum():,.0f}")
+        st.metric("Recovery %", f"{df['Recovery_%'].mean():.2f}%")
+
+        if 'Bucket' in df.columns:
+            bucket_df = df.groupby('Bucket').agg({
+                'Allocated_Amount': 'sum',
+                'Paid_Amount': 'sum'
+            }).reset_index()
+            bucket_df['Recovery_%'] = (bucket_df['Paid_Amount'] / bucket_df['Allocated_Amount'] * 100).round(2)
+            st.subheader("📊 Recovery % by Bucket")
+            st.plotly_chart(px.bar(bucket_df, x='Bucket', y='Recovery_%', color='Bucket', text='Recovery_%'))
+
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Download Final Merged Data", csv, file_name="recovery_summary.csv")
 
     st.sidebar.markdown("---")
-    st.info("Continue uploading allocation and paid files per process below...")
+    if st.sidebar.button("🔓 Logout"):
+        st.session_state.authenticated = False
+        st.rerun()
