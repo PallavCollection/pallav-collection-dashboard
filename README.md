@@ -1,16 +1,12 @@
 # 📊 BPO Collection Dashboard
 
-A Streamlit web app to upload and analyze Agent Performance Excel files. Visualizes scores, weeks, and allows data download.
+This is a multi-process BPO dashboard built using Streamlit.
 
 ## Features
+- Agent performance uploads and charts
+- Multi-process file handling
+- Allocation + Paid (current & previous) tracking
+- Recovery % and bucket-wise charts
 
-- Upload .xlsx file of agent performance
-- Auto-corrects headers
-- Interactive bar chart using Plotly
-- Download cleaned Excel or chart as PNG
-
-## Run locally
-
-```bash
-pip install -r requirements.txt
-streamlit run app.py
+## Deployment
+Use Render.com, add `render.yaml` and push this to GitHub.
