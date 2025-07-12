@@ -80,6 +80,75 @@ def stylish_table(df):
     ])
     return fig
 
+# Load config and session
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        return json.load(open(CONFIG_FILE))
+    return {"process_count": 1, "process_names": {}}
+
+def save_config(cfg):
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(cfg, f)
+
+def load_session():
+    if os.path.exists(SESSION_FILE):
+        return json.load(open(SESSION_FILE))
+    return {}
+
+def save_session(data):
+    with open(SESSION_FILE, "w") as f:
+        json.dump(data, f)
+
+config = load_config()
+session = load_session()
+now = datetime.now()
+
+# Authentication block
+if 'authenticated' not in st.session_state:
+    if session.get("last_login"):
+        last_login = datetime.strptime(session["last_login"], "%Y-%m-%d %H:%M:%S")
+        if now - last_login < timedelta(hours=24):
+            st.session_state.authenticated = True
+            st.session_state.user_email = session.get("user_email", "")
+        else:
+            st.session_state.authenticated = False
+    else:
+        st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.title("🔐 Login")
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        if email == "jjagarbattiudyog@gmail.com" and password == "Sanu@1998":
+            st.session_state.authenticated = True
+            st.session_state.user_email = email
+            save_session({"user_email": email, "last_login": now.strftime("%Y-%m-%d %H:%M:%S")})
+            st.success("Logged in. Reloading...")
+            st.rerun()
+        else:
+            st.error("Invalid credentials.")
+    st.stop()
+
+st.title(":bar_chart: Collection BPO Dashboard")
+
+# uploaded_files construction
+uploaded_files = {}
+for i in range(config["process_count"]):
+    process_key = f"process_{i+1}"
+    default_name = config["process_names"].get(process_key, f"Process_{i+1}")
+    alloc = session.get("uploads", {}).get(process_key, {}).get("alloc")
+    paid_curr = session.get("uploads", {}).get(process_key, {}).get("paid_curr")
+    paid_prev = session.get("uploads", {}).get(process_key, {}).get("paid_prev")
+
+    uploaded_files[process_key] = {
+        "name": default_name,
+        "alloc": alloc,
+        "paid_curr": paid_curr,
+        "paid_prev": paid_prev
+    }
+
+# 📊 Reports Section
 st.markdown("## 📈 Reports Section")
 below_target_threshold = 75
 
