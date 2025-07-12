@@ -1,4 +1,4 @@
-# 📊 BPO Collection Dashboard - Enhanced Persistent Version with Small Delete Buttons
+# 📊 BPO Collection Dashboard - Enhanced Persistent Version with Icon Delete Buttons
 
 import streamlit as st 
 import pandas as pd
@@ -139,12 +139,11 @@ with st.sidebar:
 
     st.markdown("---")
     st.subheader(":bust_in_silhouette: Upload Agent Performance")
-    agent_cols = st.columns([4, 1])
+    agent_cols = st.columns([5, 1])
     with agent_cols[0]:
         agent_file = st.file_uploader("Upload Agent Performance Excel", type=["xlsx"], key="agent_file")
     with agent_cols[1]:
-        st.markdown("\n")
-        if st.button("❌", key="delete_agent_file"):
+        if st.button("🗑", key="delete_agent_file", help="Delete Agent File"):
             delete_agent_file()
 
     st.markdown("---")
@@ -161,13 +160,13 @@ with st.sidebar:
 
         delete_col = st.columns(3)
         with delete_col[0]:
-            if st.button("❌", key=f"del_alloc_{i}"):
+            if st.button("🗑", key=f"del_alloc_{i}", help=f"Delete Allocation File {i+1}"):
                 delete_uploaded_file(process_key, "alloc")
         with delete_col[1]:
-            if st.button("❌", key=f"del_curr_{i}"):
+            if st.button("🗑", key=f"del_curr_{i}", help=f"Delete Paid Current File {i+1}"):
                 delete_uploaded_file(process_key, "paid_curr")
         with delete_col[2]:
-            if st.button("❌", key=f"del_prev_{i}"):
+            if st.button("🗑", key=f"del_prev_{i}", help=f"Delete Paid Previous File {i+1}"):
                 delete_uploaded_file(process_key, "paid_prev")
 
         if alloc: save_uploaded_file(alloc, process_key, "alloc")
