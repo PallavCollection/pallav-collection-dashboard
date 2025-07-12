@@ -128,7 +128,9 @@ if not st.session_state.authenticated:
         if email == "jjagarbattiudyog@gmail.com" and password == "Sanu@1998":
             st.session_state.authenticated = True
             st.session_state.user_email = email
-            save_session({"user_email": email, "last_login": now.strftime("%Y-%m-%d %H:%M:%S")})
+            session["user_email"] = email
+            session["last_login"] = now.strftime("%Y-%m-%d %H:%M:%S")
+            save_session(session)
             st.success("Logged in. Reloading...")
             st.rerun()
         else:
@@ -173,6 +175,8 @@ with st.sidebar:
         st.success("All uploaded files cleared. Please refresh.")
 
     if st.button("Logout"):
+        session["last_login"] = None
+        save_session(session)
         st.session_state.clear()
         st.rerun()
 
