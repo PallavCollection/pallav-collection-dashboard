@@ -281,13 +281,19 @@ for process_key, files in uploaded_files.items():
 
             st.markdown("### 🔍 Agent Table")
             fig_table = go.Figure(data=[go.Table(
-                header=dict(values=list(merged_df.columns),
-                            fill_color='paleturquoise',
-                            align='left'),
-                cells=dict(values=[merged_df[col] for col in merged_df.columns],
-                           fill_color='lavender',
-                           align='left'))
-            ])
+                header=dict(
+                    values=list(merged_df.columns),
+                    fill_color='#1f2c56',
+                    font=dict(color='white', size=12),
+                    align='left'
+                ),
+                cells=dict(
+                    values=[merged_df[col] for col in merged_df.columns],
+                    fill_color='#2c3e50',
+                    font=dict(color='white', size=11),
+                    align='left'
+                )
+            )])
             st.plotly_chart(fig_table, use_container_width=True)
 
             fig_bar = px.bar(
