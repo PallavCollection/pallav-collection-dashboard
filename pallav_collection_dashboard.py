@@ -71,7 +71,7 @@ def delete_uploaded_file(process_key, file_type):
         os.remove(file_path)
         del uploads[file_type]
         save_session(session)
-        st.success(f"Deleted {file_type.replace('_', ' ').title()} for {process_key}.")
+        st.toast(f"🗑 Deleted {file_type.replace('_', ' ').title()} for {process_key}.", icon="🔥")
 
 def load_saved_file(file_path):
     if os.path.exists(file_path):
@@ -109,11 +109,11 @@ if not st.session_state.authenticated:
             st.error("Invalid credentials.")
     st.stop()
 
-st.title("📊 Collection BPO Dashboard")
+st.title(":bar_chart: Collection BPO Dashboard")
 st.info("Continue uploading allocation, current and previous paid files per process below...")
 
 with st.sidebar:
-    st.subheader("📁 Manage Processes")
+    st.subheader(":file_folder: Manage Processes")
     if st.button("➕ Add Process"):
         config["process_count"] += 1
         save_config(config)
@@ -133,33 +133,31 @@ with st.sidebar:
         st.success("All uploaded files cleared. Please refresh.")
 
     st.markdown("---")
-    st.subheader("👤 Upload Agent Performance")
+    st.subheader(":bust_in_silhouette: Upload Agent Performance")
     agent_file = st.file_uploader("Upload Agent Performance Excel", type=["xlsx"], key="agent_file")
 
     st.markdown("---")
-    st.subheader("📂 Upload Files For All Processes")
+    st.subheader(":open_file_folder: Upload Files For All Processes")
     uploaded_files = {}
     for i in range(config["process_count"]):
         process_key = f"process_{i+1}"
         default_name = config["process_names"].get(process_key, f"Process_{i+1}")
-        st.markdown(f"📁 {default_name}")
+        st.markdown(f"📁 **{default_name}**")
 
-        col1, col2, col3, col4 = st.columns([4, 2, 2, 2])
-
-        with col1:
-            alloc = st.file_uploader(f"📄 Allocation File ({default_name})", type=["xlsx"], key=f"alloc_{i}")
-        with col2:
-            if st.button(f"❌ Delete Allocation {i+1}"):
-                delete_uploaded_file(process_key, "alloc")
-        with col3:
-            if st.button(f"❌ Delete Paid Curr {i+1}"):
-                delete_uploaded_file(process_key, "paid_curr")
-        with col4:
-            if st.button(f"❌ Delete Paid Prev {i+1}"):
-                delete_uploaded_file(process_key, "paid_prev")
-
+        alloc = st.file_uploader(f"📄 Allocation File ({default_name})", type=["xlsx"], key=f"alloc_{i}")
         paid_curr = st.file_uploader(f"📅 Current Month Paid ({default_name})", type=["xlsx"], key=f"curr_{i}")
         paid_prev = st.file_uploader(f"🔒 Previous Month Paid ({default_name})", type=["xlsx"], key=f"prev_{i}")
+
+        delete_col = st.columns(3)
+        with delete_col[0]:
+            if st.button(f"❌ Delete Allocation {i+1}", key=f"del_alloc_{i}"):
+                delete_uploaded_file(process_key, "alloc")
+        with delete_col[1]:
+            if st.button(f"❌ Delete Paid Curr {i+1}", key=f"del_curr_{i}"):
+                delete_uploaded_file(process_key, "paid_curr")
+        with delete_col[2]:
+            if st.button(f"❌ Delete Paid Prev {i+1}", key=f"del_prev_{i}"):
+                delete_uploaded_file(process_key, "paid_prev")
 
         if alloc: save_uploaded_file(alloc, process_key, "alloc")
         if paid_curr: save_uploaded_file(paid_curr, process_key, "paid_curr")
