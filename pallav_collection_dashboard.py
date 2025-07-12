@@ -1,4 +1,4 @@
-# 📊 BPO Collection Dashboard - Enhanced Persistent Version with File Delete Buttons
+# 📊 BPO Collection Dashboard - Enhanced Persistent Version with Small Delete Buttons
 
 import streamlit as st 
 import pandas as pd
@@ -71,7 +71,7 @@ def delete_uploaded_file(process_key, file_type):
         os.remove(file_path)
         del uploads[file_type]
         save_session(session)
-        st.toast(f"🗑 Deleted {file_type.replace('_', ' ').title()} for {process_key}.", icon="🔥")
+        st.toast(f"Deleted {file_type.replace('_', ' ').title()} for {process_key}.", icon="🗑")
 
 def load_saved_file(file_path):
     if os.path.exists(file_path):
@@ -150,13 +150,13 @@ with st.sidebar:
 
         delete_col = st.columns(3)
         with delete_col[0]:
-            if st.button(f"❌ Delete Allocation {i+1}", key=f"del_alloc_{i}"):
+            if st.button("❌", key=f"del_alloc_{i}"):
                 delete_uploaded_file(process_key, "alloc")
         with delete_col[1]:
-            if st.button(f"❌ Delete Paid Curr {i+1}", key=f"del_curr_{i}"):
+            if st.button("❌", key=f"del_curr_{i}"):
                 delete_uploaded_file(process_key, "paid_curr")
         with delete_col[2]:
-            if st.button(f"❌ Delete Paid Prev {i+1}", key=f"del_prev_{i}"):
+            if st.button("❌", key=f"del_prev_{i}"):
                 delete_uploaded_file(process_key, "paid_prev")
 
         if alloc: save_uploaded_file(alloc, process_key, "alloc")
