@@ -1,4 +1,6 @@
-import streamlit as st
+# 📊 BPO Collection Dashboard - Enhanced Version
+
+import streamlit as st 
 import pandas as pd
 import plotly.express as px
 import os
@@ -15,6 +17,8 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 
 PAID_COLUMNS = ['paid_amt', 'payment', 'paid_amount', 'recovery', 'paid']
 ALLOC_COLUMNS = ['allocation', 'target', 'total_due']
+AGENT_COLUMNS = ['agent', 'agent_name']
+DATE_COLUMNS = ['date', 'payment_date', 'paid_date']
 
 # Utils
 def clean_headers(df):
@@ -83,7 +87,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 st.title("📊 Collection BPO Dashboard")
-st.info("Continue uploading allocation and paid files per process below...")
+st.info("Continue uploading allocation, current and previous paid files per process below...")
 
 with st.sidebar:
     st.subheader("📁 Manage Processes")
@@ -107,12 +111,14 @@ with st.sidebar:
         process_key = f"process_{i+1}"
         default_name = config["process_names"].get(process_key, f"Process_{i+1}")
         st.markdown(f"**📁 {default_name}**")
-        alloc = st.file_uploader(f"📤 Allocation File ({default_name})", type=["xlsx"], key=f"alloc_{i}")
+        alloc = st.file_uploader(f"📄 Allocation File ({default_name})", type=["xlsx"], key=f"alloc_{i}")
         paid_curr = st.file_uploader(f"📅 Current Month Paid ({default_name})", type=["xlsx"], key=f"curr_{i}")
+        paid_prev = st.file_uploader(f"🔒 Previous Month Paid ({default_name})", type=["xlsx"], key=f"prev_{i}")
         uploaded_files[process_key] = {
             "name": default_name,
             "alloc": alloc,
-            "paid_curr": paid_curr
+            "paid_curr": paid_curr,
+            "paid_prev": paid_prev
         }
 
 st.button("🔄 Refresh All")
@@ -134,7 +140,7 @@ summary_data = []
 
 for key, data in uploaded_files.items():
     st.markdown(f"### 📂 Reports for: {data['name']}")
-    alloc_df, paid_df = None, None
+    alloc_df = paid_df = prev_df = None
 
     if data['alloc']:
         alloc_df = pd.read_excel(data['alloc'])
@@ -145,31 +151,77 @@ for key, data in uploaded_files.items():
     if data['paid_curr']:
         paid_df = pd.read_excel(data['paid_curr'])
         paid_df = clean_headers(paid_df)
-        st.subheader(f"💰 Paid - {data['name']}")
+        st.subheader(f"💰 Current Paid - {data['name']}")
         st.dataframe(paid_df)
+
+    if data['paid_prev']:
+        prev_df = pd.read_excel(data['paid_prev'])
+        prev_df = clean_headers(prev_df)
+        st.subheader(f"🕒 Previous Paid - {data['name']}")
+        st.dataframe(prev_df)
 
     if alloc_df is not None and paid_df is not None:
         alloc_col = find_column(alloc_df, ALLOC_COLUMNS)
         paid_col = find_column(paid_df, PAID_COLUMNS)
+        prev_col = find_column(prev_df, PAID_COLUMNS) if prev_df is not None else None
+        agent_col = find_column(paid_df, AGENT_COLUMNS)
+        date_col = find_column(paid_df, DATE_COLUMNS)
 
-        if alloc_col and paid_col:
-            total_target = alloc_df[alloc_col].sum()
-            total_paid = paid_df[paid_col].sum()
-            recovery_pct = (total_paid / total_target * 100) if total_target > 0 else 0
-            shortfall = total_target - total_paid
+        total_target = alloc_df[alloc_col].sum() if alloc_col else 0
+        total_paid = paid_df[paid_col].sum() if paid_col else 0
+        prev_paid = prev_df[prev_col].sum() if prev_col and prev_df is not None else 0
+        recovery_pct = (total_paid / total_target * 100) if total_target > 0 else 0
+        shortfall = total_target - total_paid
 
-            st.markdown(f"**🎯 Target:** ₹{total_target:,.0f}  |  **✅ Paid:** ₹{total_paid:,.0f}  |  **📉 Recovery:** {recovery_pct:.2f}%")
+        st.markdown(f"**🌟 Target:** ₹{total_target:,.0f}  |  **✅ Paid:** ₹{total_paid:,.0f}  |  **📉 Recovery:** {recovery_pct:.2f}%")
 
-            summary_data.append({
-                "Process": data['name'],
-                "Target": total_target,
-                "Paid": total_paid,
-                "Recovery %": recovery_pct,
-                "Shortfall": shortfall
-            })
+        # Date Range Filter
+        if date_col and paid_col:
+            paid_df[date_col] = pd.to_datetime(paid_df[date_col], errors='coerce')
+            min_date, max_date = paid_df[date_col].min(), paid_df[date_col].max()
+            start_date, end_date = st.date_input(f"Select Date Range for {data['name']}", [min_date, max_date])
+            paid_df = paid_df[(paid_df[date_col] >= pd.to_datetime(start_date)) & (paid_df[date_col] <= pd.to_datetime(end_date))]
+
+        # 📊 Comparison chart
+        comp_df = pd.DataFrame({
+            "Label": ["Current Paid", "Previous Paid"],
+            "Amount": [total_paid, prev_paid]
+        })
+        st.plotly_chart(px.bar(comp_df, x="Label", y="Amount", title="📊 Paid Comparison (Current vs Previous)"), use_container_width=True)
+
+        # ⏱ Weekly/Monthly Trends
+        if date_col and paid_col:
+            week_trend = paid_df.groupby(paid_df[date_col].dt.to_period("W"))[paid_col].sum().reset_index()
+            week_trend[date_col] = week_trend[date_col].astype(str)
+            st.plotly_chart(px.line(week_trend, x=date_col, y=paid_col, title="🗓 Weekly Paid Trend"), use_container_width=True)
+
+            month_trend = paid_df.groupby(paid_df[date_col].dt.to_period("M"))[paid_col].sum().reset_index()
+            month_trend[date_col] = month_trend[date_col].astype(str)
+            st.plotly_chart(px.bar(month_trend, x=date_col, y=paid_col, title="📆 Monthly Paid Trend"), use_container_width=True)
+
+        # 👤 Agent-wise Recovery
+        if agent_col and paid_col:
+            agent_summary = paid_df.groupby(agent_col)[paid_col].sum().reset_index()
+            agent_summary = agent_summary.sort_values(by=paid_col, ascending=False)
+            st.plotly_chart(px.bar(agent_summary, x=agent_col, y=paid_col, title="👤 Agent-wise Collection"), use_container_width=True)
+            st.download_button(f"Download {data['name']} Agent Summary", data=to_excel_download(agent_summary), file_name=f"{data['name']}_agent_summary.xlsx")
+
+        # 💬 Commentary
+        comment = "✅ Good performance." if recovery_pct >= 90 else "⚠️ Below expectations." if recovery_pct >= 70 else "❌ Poor performance."
+        st.info(f"**Performance Alert:** {comment}")
+
+        summary_data.append({
+            "Process": data['name'],
+            "Target": total_target,
+            "Paid": total_paid,
+            "Prev Paid": prev_paid,
+            "Recovery %": recovery_pct,
+            "Shortfall": shortfall,
+            "Remarks": comment
+        })
 
 if summary_data:
     summary_df = pd.DataFrame(summary_data)
     st.subheader("📄 Summary Report")
     st.dataframe(summary_df)
-    st.download_button("📥 Download Summary as Excel", data=to_excel_download(summary_df), file_name="bpo_summary_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    st.download_button("📅 Download Summary as Excel", data=to_excel_download(summary_df), file_name="bpo_summary_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
