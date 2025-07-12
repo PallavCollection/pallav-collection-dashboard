@@ -1,5 +1,3 @@
-# This is the complete corrected Streamlit dashboard script with all requested features
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -10,7 +8,6 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from fpdf import FPDF
 import tempfile
-import base64
 
 st.set_page_config(page_title="📊 BPO Collection Dashboard", layout="wide")
 
@@ -31,11 +28,22 @@ def clean_headers(df):
     df.columns = [col.strip().lower().replace(" ", "_").replace("(", "").replace(")", "") for col in df.columns]
     return df
 
-def find_column(df, options):
-    for col in df.columns:
-        if col.lower() in options:
-            return col
+def correct_column(df, desired_names):
+    df = clean_headers(df)
+    for name in desired_names:
+        for col in df.columns:
+            if col.strip().lower() == name:
+                return col
     return None
+
+def extract_required_columns(df, primary_options):
+    df = clean_headers(df)
+    selected_cols = {}
+    for options in primary_options:
+        match = correct_column(df, options)
+        if match:
+            selected_cols[options[0]] = match
+    return df, selected_cols
 
 def load_config():
     if os.path.exists(CONFIG_FILE):
@@ -177,6 +185,12 @@ with st.sidebar:
         if st.button("🗑", key="delete_agent_file", help="Delete Agent File"):
             delete_agent_file()
 
+    if agent_file:
+        df_agent = pd.read_excel(agent_file)
+        df_agent = clean_headers(df_agent)
+        st.markdown("### 📟 Agent Performance Preview")
+        st.dataframe(df_agent.head())
+
     st.markdown("---")
     st.subheader(":open_file_folder: Upload Files For All Processes")
     uploaded_files = {}
@@ -186,7 +200,7 @@ with st.sidebar:
         st.markdown(f"📁 **{default_name}**")
 
         alloc = st.file_uploader(f"📄 Allocation File ({default_name})", type=["xlsx"], key=f"alloc_{i}")
-        paid_curr = st.file_uploader(f"📅 Current Month Paid ({default_name})", type=["xlsx"], key=f"curr_{i}")
+        paid_curr = st.file_uploader(f"🗕 Current Month Paid ({default_name})", type=["xlsx"], key=f"curr_{i}")
         paid_prev = st.file_uploader(f"🔒 Previous Month Paid ({default_name})", type=["xlsx"], key=f"prev_{i}")
 
         delete_col = st.columns(3)
@@ -216,7 +230,7 @@ with st.sidebar:
             "paid_prev": paid_prev
         }
 
-# 📈 REPORT GENERATION SECTION
+# 📈 Reports Section
 st.markdown("## 📈 Reports Section")
 below_target_threshold = 75
 
@@ -232,9 +246,9 @@ for process_key, files in uploaded_files.items():
             df_curr = clean_headers(pd.read_excel(paid_curr_file))
             df_prev = clean_headers(pd.read_excel(paid_prev_file)) if paid_prev_file else pd.DataFrame()
 
-            alloc_col = find_column(df_alloc, ALLOC_COLUMNS)
-            paid_col = find_column(df_curr, PAID_COLUMNS)
-            agent_col = find_column(df_alloc, AGENT_COLUMNS)
+            alloc_col = correct_column(df_alloc, ALLOC_COLUMNS)
+            paid_col = correct_column(df_curr, PAID_COLUMNS)
+            agent_col = correct_column(df_alloc, AGENT_COLUMNS)
 
             if not all([alloc_col, paid_col, agent_col]):
                 st.warning(f"Missing required columns in uploaded files for {process_name}.")
