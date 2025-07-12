@@ -73,6 +73,11 @@ def delete_uploaded_file(process_key, file_type):
         save_session(session)
         st.toast(f"Deleted {file_type.replace('_', ' ').title()} for {process_key}.", icon="🗑")
 
+def delete_agent_file():
+    if "agent_file" in st.session_state:
+        del st.session_state["agent_file"]
+        st.toast("Deleted agent performance file.", icon="🗑")
+
 def load_saved_file(file_path):
     if os.path.exists(file_path):
         return pd.read_excel(file_path)
@@ -134,7 +139,13 @@ with st.sidebar:
 
     st.markdown("---")
     st.subheader(":bust_in_silhouette: Upload Agent Performance")
-    agent_file = st.file_uploader("Upload Agent Performance Excel", type=["xlsx"], key="agent_file")
+    agent_cols = st.columns([4, 1])
+    with agent_cols[0]:
+        agent_file = st.file_uploader("Upload Agent Performance Excel", type=["xlsx"], key="agent_file")
+    with agent_cols[1]:
+        st.markdown("\n")
+        if st.button("❌", key="delete_agent_file"):
+            delete_agent_file()
 
     st.markdown("---")
     st.subheader(":open_file_folder: Upload Files For All Processes")
