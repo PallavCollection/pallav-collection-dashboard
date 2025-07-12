@@ -100,6 +100,10 @@ with st.sidebar:
         save_config(config)
         st.rerun()
 
+    if st.button("🗑 Reset All Uploads"):
+        st.session_state.clear()
+        st.success("All uploaded files cleared. Please refresh.")
+
     st.markdown("---")
     st.subheader("👤 Upload Agent Performance")
     agent_file = st.file_uploader("Upload Agent Performance Excel", type=["xlsx"], key="agent_file")
