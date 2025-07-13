@@ -1,21 +1,3 @@
-# Enhanced version of your original script
-# Adds the following features:
-# - Dashboard Filtering
-# - Auto-refresh with st_autorefresh
-# - Admin-Agent File Access Control
-# - KPI Metrics
-# - Hashed Passwords (bcrypt)
-# - Date-wise Report Filtering
-# - Basic AI Insight stub
-# - Admin-only User Registration and Management
-# - Password Reset Option
-# - Optional Enhancements:
-#   - Chart Titles/Labels
-#   - Better PDF with sample data
-#   - Column type detection
-#   - File Deletion Option
-#   - Multi-column Charting (X + multiple Y)
-
 import streamlit as st
 import pandas as pd
 import os
@@ -86,7 +68,7 @@ def update_password(email, new_password):
 def validate_user(email, password):
     c.execute("SELECT password, role FROM users WHERE email=?", (email,))
     result = c.fetchone()
-    if result and check_password(password.encode(), result[0]):
+    if result and check_password(password, result[0]):  # FIXED: Removed .encode() here
         return result[1]
     return None
 
