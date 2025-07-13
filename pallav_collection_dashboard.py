@@ -1,4 +1,4 @@
-# 📊 Pallav Collection Dashboard - Enhanced Persistent Version with Small Delete Buttons
+# 📊 Pallav Collection Dashboard - Enhanced Persistent Version with Small Delete Buttons and Logo
 
 import streamlit as st 
 import pandas as pd
@@ -114,7 +114,10 @@ if not st.session_state.authenticated:
             st.error("Invalid credentials.")
     st.stop()
 
-st.image("/mnt/data/12f0a0bb-e49b-4a6a-85fa-e26f526c8fc1.png", width=80)
+# Display Logo
+st.image("/mnt/data/6d187a54-5348-44c1-bb2e-fced22f62097.png", width=80)
+
+# App Title
 st.title(":bar_chart: Pallav Collection Dashboard")
 st.info("Continue uploading allocation, current and previous paid files per process below...")
 
