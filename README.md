@@ -1,4 +1,4 @@
-# 📊 BPO Collection Dashboard
+# 📊 Pallav Collection Dashboard
 
 This is a multi-process BPO dashboard built using Streamlit.
 
