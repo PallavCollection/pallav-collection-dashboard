@@ -23,7 +23,7 @@ ALLOC_COLUMNS = ['allocation', 'target', 'total_due']
 AGENT_COLUMNS = ['agent', 'agent_name']
 DATE_COLUMNS = ['date', 'payment_date', 'paid_date']
 
-# -- Utility Functions --
+# Utility functions
 def clean_headers(df):
     df.columns = [col.strip().lower().replace(" ", "_").replace("(", "").replace(")", "") for col in df.columns]
     return df
@@ -35,15 +35,6 @@ def correct_column(df, desired_names):
             if col.strip().lower() == name:
                 return col
     return None
-
-def extract_required_columns(df, primary_options):
-    df = clean_headers(df)
-    selected_cols = {}
-    for options in primary_options:
-        match = correct_column(df, options)
-        if match:
-            selected_cols[options[0]] = match
-    return df, selected_cols
 
 def load_config():
     if os.path.exists(CONFIG_FILE):
@@ -103,12 +94,12 @@ def generate_agent_pdf(agent_data, process_name):
     pdf.output(temp_file.name)
     return temp_file.name
 
-# -- Load config and session
+# Load config and session
 config = load_config()
 session = load_session()
 now = datetime.now()
 
-# -- Authentication
+# Authentication
 if 'authenticated' not in st.session_state:
     if session.get("last_login"):
         last_login = datetime.strptime(session["last_login"], "%Y-%m-%d %H:%M:%S")
@@ -137,16 +128,16 @@ if not st.session_state.authenticated:
             st.error("Invalid credentials.")
     st.stop()
 
-# -- Auto Refresh Dashboard Section
+# Auto refresh every 15 minutes
 last_refresh = st.session_state.get("last_refresh")
 if not last_refresh or datetime.now() - datetime.fromisoformat(last_refresh) > timedelta(minutes=15):
     st.session_state.last_refresh = datetime.now().isoformat()
     st.rerun()
 
 st.title("📊 Pallav Collection Dashboard")
-st.caption("Last refreshed at 2025-07-13 06:28:12")
+st.caption(f"Last refreshed at {now.strftime('%Y-%m-%d %H:%M:%S')}")
 
-# -- SIDEBAR UI
+# Sidebar
 with st.sidebar:
     st.subheader(":file_folder: Manage Processes")
     for i in range(config["process_count"]):
@@ -177,7 +168,8 @@ with st.sidebar:
     if st.button("Logout"):
         session["last_login"] = None
         save_session(session)
-        st.session_state.clear()
+        st.session_state.authenticated = False
+        st.success("Logged out successfully.")
         st.rerun()
 
     st.markdown("---")
@@ -250,7 +242,6 @@ for process_key, files in uploaded_files.items():
     try:
         df_alloc = pd.read_excel(alloc_file)
         df_paid = pd.read_excel(paid_file)
-
         df_alloc = clean_headers(df_alloc)
         df_paid = clean_headers(df_paid)
 
@@ -263,7 +254,6 @@ for process_key, files in uploaded_files.items():
             st.warning(f"❌ Could not find required columns in {name}.")
             continue
 
-        # ✅ Count + Amount Reporting Block
         alloc_summary = df_alloc.groupby(agent_col_alloc).agg(
             Target_Amount=(alloc_col, "sum"),
             Allocation_Count=(alloc_col, "count")
@@ -281,45 +271,34 @@ for process_key, files in uploaded_files.items():
         st.markdown(f"### 📌 Summary for `{name}`")
         st.dataframe(merged)
 
-        fig = px.bar(merged, x="Agent", y=["Target_Amount", "Paid_Amount"], barmode="group", title=f"{name} - Amount Comparison")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(px.bar(merged, x="Agent", y=["Target_Amount", "Paid_Amount"], barmode="group", title=f"{name} - Amount Comparison"), use_container_width=True)
+        st.plotly_chart(px.bar(merged, x="Agent", y=["Allocation_Count", "Paid_Count"], barmode="group", title=f"{name} - Count Comparison"), use_container_width=True)
 
-        fig2 = px.bar(merged, x="Agent", y=["Allocation_Count", "Paid_Count"], barmode="group", title=f"{name} - Count Comparison")
-        # 📊 Payment Trend Chart
+        # Daily Trend
         date_col = correct_column(df_paid, DATE_COLUMNS)
         if date_col:
             df_paid[date_col] = pd.to_datetime(df_paid[date_col], errors='coerce')
             df_paid['payment_date_only'] = df_paid[date_col].dt.date
-
-            # Trend for current month
             trend_curr = df_paid.groupby('payment_date_only')[paid_col].sum().reset_index()
             trend_curr.columns = ['Date', 'Current Paid']
 
-            # Try loading previous file for trend comparison
-            paid_prev_file = files.get("paid_prev")
             trend_merged = trend_curr.copy()
-
+            paid_prev_file = files.get("paid_prev")
             if paid_prev_file:
                 df_prev = pd.read_excel(paid_prev_file)
                 df_prev = clean_headers(df_prev)
                 prev_paid_col = correct_column(df_prev, PAID_COLUMNS)
                 prev_date_col = correct_column(df_prev, DATE_COLUMNS)
-
                 if prev_paid_col and prev_date_col:
                     df_prev[prev_date_col] = pd.to_datetime(df_prev[prev_date_col], errors='coerce')
                     df_prev['payment_date_only'] = df_prev[prev_date_col].dt.date
                     trend_prev = df_prev.groupby('payment_date_only')[prev_paid_col].sum().reset_index()
                     trend_prev.columns = ['Date', 'Previous Paid']
-
-                    # Merge with current
                     trend_merged = pd.merge(trend_curr, trend_prev, on='Date', how='outer').fillna(0)
 
-            # Sort and plot
             trend_merged = trend_merged.sort_values("Date")
             fig_trend = px.line(trend_merged, x="Date", y=["Current Paid", "Previous Paid"], title=f"{name} - Daily Payment Trend")
             st.plotly_chart(fig_trend, use_container_width=True)
-
-        st.plotly_chart(fig2, use_container_width=True)
 
         below_target = merged[merged["Recovery %"] < below_target_threshold]
         if not below_target.empty:
