@@ -239,4 +239,48 @@ with st.sidebar:
 st.markdown("## 📈 Reports Section")
 below_target_threshold = 75
 
-# (rest of your report generation logic continues here...)
+for process_key, files in uploaded_files.items():
+    name = files["name"]
+    alloc_file = files.get("alloc")
+    paid_file = files.get("paid_curr")
+
+    if not alloc_file or not paid_file:
+        st.warning(f"⚠️ Skipping {name} - Allocation or Paid file missing.")
+        continue
+
+    try:
+        df_alloc = pd.read_excel(alloc_file)
+        df_paid = pd.read_excel(paid_file)
+
+        df_alloc = clean_headers(df_alloc)
+        df_paid = clean_headers(df_paid)
+
+        alloc_col = correct_column(df_alloc, ALLOC_COLUMNS)
+        paid_col = correct_column(df_paid, PAID_COLUMNS)
+        agent_col_alloc = correct_column(df_alloc, AGENT_COLUMNS)
+        agent_col_paid = correct_column(df_paid, AGENT_COLUMNS)
+
+        if not alloc_col or not paid_col:
+            st.warning(f"❌ Could not find required columns in {name}.")
+            continue
+
+        grouped_alloc = df_alloc.groupby(agent_col_alloc)[alloc_col].sum().reset_index()
+        grouped_paid = df_paid.groupby(agent_col_paid)[paid_col].sum().reset_index()
+        merged = pd.merge(grouped_alloc, grouped_paid, left_on=agent_col_alloc, right_on=agent_col_paid, how="outer").fillna(0)
+
+        merged["Recovery %"] = (merged[paid_col] / merged[alloc_col] * 100).round(2)
+        merged = merged.rename(columns={agent_col_alloc: "Agent", alloc_col: "Target", paid_col: "Paid"})
+
+        st.markdown(f"### 📌 Summary for `{name}`")
+        st.dataframe(merged)
+
+        fig = px.bar(merged, x="Agent", y=["Target", "Paid"], barmode="group", title=f"{name} - Target vs Paid")
+        st.plotly_chart(fig, use_container_width=True)
+
+        below_target = merged[merged["Recovery %"] < below_target_threshold]
+        if not below_target.empty:
+            st.warning(f"🔻 Agents below {below_target_threshold}% recovery for {name}:")
+            st.dataframe(below_target[["Agent", "Recovery %"]])
+
+    except Exception as e:
+        st.error(f"⚠️ Error generating report for {name}: {e}")
