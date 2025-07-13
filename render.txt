@@ -1,6 +1,23 @@
-services:
-  - type: web
-    name: bpo-dashboard
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: streamlit run app.py
+# Render Deployment Instructions
+
+1. Go to https://render.com
+2. Click "New + → Web Service"
+3. Connect your GitHub repo or upload code manually
+
+4. Fill in the following:
+
+- **Name:** pallav-collection-dashboard
+- **Runtime:** Python
+- **Build Command:** pip install -r requirements.txt
+- **Start Command:** streamlit run your_script.py --server.port=10000
+
+5. Set environment variables (if needed)
+
+6. Click "Create Web Service"
+
+---
+
+📌 Notes:
+- Your app will run at: https://your-subdomain.onrender.com
+- Streamlit uses port 10000 on Render
+- SQLite (`database.db`) is file-based and will reset if the service restarts unless persistent storage is configured
