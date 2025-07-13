@@ -134,7 +134,7 @@ if not st.session_state.authenticated:
 
 # ✅ Show Logo
 try:
-    st.image(r"C:\Users\SonuKumar\Downloads\pallav_logo.jpeg", width=80)
+    st.image("pallav_logo.png", width=80)
 except:
     st.warning("⚠️ Could not load logo from local path.")
 
