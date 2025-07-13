@@ -252,6 +252,7 @@ for process_key, files in uploaded_files.items():
         df_alloc = pd.read_excel(alloc_file)
         df_paid = pd.read_excel(paid_file)
 
+        # ✅ Auto header correction
         df_alloc = clean_headers(df_alloc)
         df_paid = clean_headers(df_paid)
 
