@@ -68,7 +68,7 @@ def update_password(email, new_password):
 def validate_user(email, password):
     c.execute("SELECT password, role FROM users WHERE email=?", (email,))
     result = c.fetchone()
-    if result and check_password(password, result[0]):  # FIXED: Removed .encode() here
+    if result and check_password(password, result[0]):
         return result[1]
     return None
 
@@ -117,7 +117,7 @@ if not st.session_state.authenticated:
 
     with tab2:
         st.subheader("📝 Register New User (Admin Only)")
-        if "role" in st.session_state and st.session_state.role == "admin":
+        if st.session_state.get("authenticated") and st.session_state.get("role") == "admin":
             new_email = st.text_input("New Email")
             new_password = st.text_input("New Password", type="password")
             new_role = st.selectbox("Role", ["admin", "agent"])
@@ -191,7 +191,7 @@ if len(files) > 5:
     st.info("💡 Insight: High file upload activity this month.")
 
 # File Display
-for name, content, uploaded_at, owner in files:
+for i, (name, content, uploaded_at, owner) in enumerate(files):
     if selected_user and selected_user != "All" and owner != selected_user:
         continue
 
@@ -213,7 +213,7 @@ for name, content, uploaded_at, owner in files:
         df = df.convert_dtypes()
         st.dataframe(df.head())
 
-        if st.button(f"❌ Delete {name}", key=f"del_{name}"):
+        if st.button(f"❌ Delete {name}_{i}", key=f"del_{name}_{i}"):
             delete_file(owner, name)
             st.success(f"Deleted: {name}")
             st.rerun()
@@ -224,12 +224,12 @@ for name, content, uploaded_at, owner in files:
             st.warning("Not enough columns to plot.")
             continue
 
-        x_axis = st.selectbox("X-axis", col_options, key=f"x_{name}")
-        y_axes = st.multiselect("Y-axis", col_options, default=col_options[1], key=f"y_{name}")
-        chart_type = st.selectbox("Chart Type", ["Bar", "Line", "Pie"], key=f"chart_{name}")
-        chart_title = st.text_input("Chart Title", f"Chart for {name}", key=f"title_{name}")
+        x_axis = st.selectbox("X-axis", col_options, key=f"x_{name}_{i}")
+        y_axes = st.multiselect("Y-axis", col_options, default=col_options[1], key=f"y_{name}_{i}")
+        chart_type = st.selectbox("Chart Type", ["Bar", "Line", "Pie"], key=f"chart_{name}_{i}")
+        chart_title = st.text_input("Chart Title", f"Chart for {name}", key=f"title_{name}_{i}")
 
-        if st.button("📈 Generate Chart", key=f"plot_{name}"):
+        if st.button("📈 Generate Chart", key=f"plot_{name}_{i}"):
             try:
                 chart_df = df[[x_axis] + y_axes].dropna()
                 if chart_type == "Bar":
@@ -249,7 +249,7 @@ for name, content, uploaded_at, owner in files:
         pdf.add_page()
         pdf.set_font("Arial", size=12)
         pdf.cell(200, 10, txt=f"Report for {name}", ln=True)
-        for i, col in enumerate(df.columns[:10]):
+        for col in df.columns[:10]:
             pdf.cell(200, 10, txt=f"{col}: {df[col].iloc[0]}", ln=True)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
             pdf.output(tmp.name)
