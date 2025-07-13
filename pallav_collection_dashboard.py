@@ -285,6 +285,40 @@ for process_key, files in uploaded_files.items():
         st.plotly_chart(fig, use_container_width=True)
 
         fig2 = px.bar(merged, x="Agent", y=["Allocation_Count", "Paid_Count"], barmode="group", title=f"{name} - Count Comparison")
+        # 📊 Payment Trend Chart
+        date_col = correct_column(df_paid, DATE_COLUMNS)
+        if date_col:
+            df_paid[date_col] = pd.to_datetime(df_paid[date_col], errors='coerce')
+            df_paid['payment_date_only'] = df_paid[date_col].dt.date
+
+            # Trend for current month
+            trend_curr = df_paid.groupby('payment_date_only')[paid_col].sum().reset_index()
+            trend_curr.columns = ['Date', 'Current Paid']
+
+            # Try loading previous file for trend comparison
+            paid_prev_file = files.get("paid_prev")
+            trend_merged = trend_curr.copy()
+
+            if paid_prev_file:
+                df_prev = pd.read_excel(paid_prev_file)
+                df_prev = clean_headers(df_prev)
+                prev_paid_col = correct_column(df_prev, PAID_COLUMNS)
+                prev_date_col = correct_column(df_prev, DATE_COLUMNS)
+
+                if prev_paid_col and prev_date_col:
+                    df_prev[prev_date_col] = pd.to_datetime(df_prev[prev_date_col], errors='coerce')
+                    df_prev['payment_date_only'] = df_prev[prev_date_col].dt.date
+                    trend_prev = df_prev.groupby('payment_date_only')[prev_paid_col].sum().reset_index()
+                    trend_prev.columns = ['Date', 'Previous Paid']
+
+                    # Merge with current
+                    trend_merged = pd.merge(trend_curr, trend_prev, on='Date', how='outer').fillna(0)
+
+            # Sort and plot
+            trend_merged = trend_merged.sort_values("Date")
+            fig_trend = px.line(trend_merged, x="Date", y=["Current Paid", "Previous Paid"], title=f"{name} - Daily Payment Trend")
+            st.plotly_chart(fig_trend, use_container_width=True)
+
         st.plotly_chart(fig2, use_container_width=True)
 
         below_target = merged[merged["Recovery %"] < below_target_threshold]
