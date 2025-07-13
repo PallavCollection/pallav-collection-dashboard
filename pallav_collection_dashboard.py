@@ -10,6 +10,9 @@ from fpdf import FPDF
 import tempfile
 
 st.set_page_config(page_title="📊 Pallav Collection Dashboard", layout="wide")
+st.title(":bar_chart: Pallav Collection Dashboard")
+st.caption(f"Last refreshed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
 
 CACHE_DIR = "cache"
 UPLOAD_DIR = os.path.join(CACHE_DIR, "uploads")
