@@ -1,6 +1,7 @@
 streamlit
 pandas
-plotly
 openpyxl
-xlsxwriter
+bcrypt
 fpdf
+plotly
+streamlit-autorefresh
