@@ -143,7 +143,6 @@ if not last_refresh or datetime.now() - datetime.fromisoformat(last_refresh) > t
     st.session_state.last_refresh = datetime.now().isoformat()
     st.rerun()
 
-# ✅ ✅ ✅ ADDED THIS TITLE + TIMESTAMP
 st.title("📊 Pallav Collection Dashboard")
 st.caption("Last refreshed at 2025-07-13 06:28:12")
 
@@ -252,7 +251,6 @@ for process_key, files in uploaded_files.items():
         df_alloc = pd.read_excel(alloc_file)
         df_paid = pd.read_excel(paid_file)
 
-        # ✅ Auto header correction
         df_alloc = clean_headers(df_alloc)
         df_paid = clean_headers(df_paid)
 
@@ -265,18 +263,29 @@ for process_key, files in uploaded_files.items():
             st.warning(f"❌ Could not find required columns in {name}.")
             continue
 
-        grouped_alloc = df_alloc.groupby(agent_col_alloc)[alloc_col].sum().reset_index()
-        grouped_paid = df_paid.groupby(agent_col_paid)[paid_col].sum().reset_index()
-        merged = pd.merge(grouped_alloc, grouped_paid, left_on=agent_col_alloc, right_on=agent_col_paid, how="outer").fillna(0)
+        # ✅ Count + Amount Reporting Block
+        alloc_summary = df_alloc.groupby(agent_col_alloc).agg(
+            Target_Amount=(alloc_col, "sum"),
+            Allocation_Count=(alloc_col, "count")
+        ).reset_index()
 
-        merged["Recovery %"] = (merged[paid_col] / merged[alloc_col] * 100).round(2)
-        merged = merged.rename(columns={agent_col_alloc: "Agent", alloc_col: "Target", paid_col: "Paid"})
+        paid_summary = df_paid.groupby(agent_col_paid).agg(
+            Paid_Amount=(paid_col, "sum"),
+            Paid_Count=(paid_col, "count")
+        ).reset_index()
+
+        merged = pd.merge(alloc_summary, paid_summary, left_on=agent_col_alloc, right_on=agent_col_paid, how="outer").fillna(0)
+        merged["Recovery %"] = (merged["Paid_Amount"] / merged["Target_Amount"] * 100).round(2)
+        merged = merged.rename(columns={agent_col_alloc: "Agent"})
 
         st.markdown(f"### 📌 Summary for `{name}`")
         st.dataframe(merged)
 
-        fig = px.bar(merged, x="Agent", y=["Target", "Paid"], barmode="group", title=f"{name} - Target vs Paid")
+        fig = px.bar(merged, x="Agent", y=["Target_Amount", "Paid_Amount"], barmode="group", title=f"{name} - Amount Comparison")
         st.plotly_chart(fig, use_container_width=True)
+
+        fig2 = px.bar(merged, x="Agent", y=["Allocation_Count", "Paid_Count"], barmode="group", title=f"{name} - Count Comparison")
+        st.plotly_chart(fig2, use_container_width=True)
 
         below_target = merged[merged["Recovery %"] < below_target_threshold]
         if not below_target.empty:
