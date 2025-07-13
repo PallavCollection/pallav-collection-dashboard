@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -10,8 +10,6 @@ from fpdf import FPDF
 import tempfile
 
 st.set_page_config(page_title="📊 Pallav Collection Dashboard", layout="wide")
-
-# 🧹 Removed dashboard title and caption here
 
 CACHE_DIR = "cache"
 UPLOAD_DIR = os.path.join(CACHE_DIR, "uploads")
@@ -145,9 +143,9 @@ if not last_refresh or datetime.now() - datetime.fromisoformat(last_refresh) > t
     st.session_state.last_refresh = datetime.now().isoformat()
     st.rerun()
 
-# ✅ Removed this block:
-# st.title(":bar_chart: Collection BPO Dashboard")
-# st.caption(f"Last refreshed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+# ✅ ✅ ✅ ADDED THIS TITLE + TIMESTAMP
+st.title("📊 Pallav Collection Dashboard")
+st.caption("Last refreshed at 2025-07-13 06:28:12")
 
 # -- SIDEBAR UI
 with st.sidebar:
@@ -241,4 +239,4 @@ with st.sidebar:
 st.markdown("## 📈 Reports Section")
 below_target_threshold = 75
 
-# (report generation logic continues unchanged...)
+# (rest of your report generation logic continues here...)
