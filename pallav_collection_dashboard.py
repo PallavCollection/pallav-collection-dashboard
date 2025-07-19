@@ -137,173 +137,82 @@ if not last_refresh or datetime.now() - datetime.fromisoformat(last_refresh) > t
 st.title("📊 Pallav Collection Dashboard")
 st.caption(f"Last refreshed at {now.strftime('%Y-%m-%d %H:%M:%S')}")
 
-# Sidebar
-with st.sidebar:
-    st.subheader(":file_folder: Manage Processes")
-    for i in range(config["process_count"]):
-        process_key = f"process_{i+1}"
-        process_name = config["process_names"].get(process_key, f"Process_{i+1}")
-        new_name = st.text_input(f"Rename {process_name}", value=process_name, key=f"name_{process_key}")
-        config["process_names"][process_key] = new_name
-    save_config(config)
-
-    if st.button("➕ Add Process"):
-        config["process_count"] += 1
-        save_config(config)
-        st.rerun()
-    if config["process_count"] > 1 and st.button("➖ Remove Process"):
-        config["process_count"] -= 1
-        save_config(config)
-        st.rerun()
-
-    if st.button("🗑 Reset All Uploads"):
-        st.session_state.clear()
-        if os.path.exists(UPLOAD_DIR):
-            for f in os.listdir(UPLOAD_DIR):
-                os.remove(os.path.join(UPLOAD_DIR, f))
-        if os.path.exists(SESSION_FILE):
-            os.remove(SESSION_FILE)
-        st.success("All uploaded files cleared. Please refresh.")
-
-    if st.button("Logout"):
-        session["last_login"] = None
-        save_session(session)
-        st.session_state.authenticated = False
-        st.success("Logged out successfully.")
-        st.rerun()
-
-    st.markdown("---")
-    st.subheader(":bust_in_silhouette: Upload Agent Performance")
-    agent_cols = st.columns([5, 1])
-    with agent_cols[0]:
-        agent_file = st.file_uploader("Upload Agent Performance Excel", type=["xlsx"], key="agent_file")
-    with agent_cols[1]:
-        if st.button("🗑", key="delete_agent_file", help="Delete Agent File"):
-            delete_agent_file()
-
-    if agent_file:
-        df_agent = pd.read_excel(agent_file)
-        df_agent = clean_headers(df_agent)
-        st.markdown("### 📟 Agent Performance Preview")
-        st.dataframe(df_agent.head())
-
-    st.markdown("---")
-    st.subheader(":open_file_folder: Upload Files For All Processes")
-    uploaded_files = {}
-    for i in range(config["process_count"]):
-        process_key = f"process_{i+1}"
-        default_name = config["process_names"].get(process_key, f"Process_{i+1}")
-        st.markdown(f"📁 *{default_name}*")
-
-        alloc = st.file_uploader(f"📄 Allocation File ({default_name})", type=["xlsx"], key=f"alloc_{i}")
-        paid_curr = st.file_uploader(f"🗕 Current Month Paid ({default_name})", type=["xlsx"], key=f"curr_{i}")
-        paid_prev = st.file_uploader(f"🔒 Previous Month Paid ({default_name})", type=["xlsx"], key=f"prev_{i}")
-
-        delete_col = st.columns(3)
-        with delete_col[0]:
-            if st.button("🗑", key=f"del_alloc_{i}", help=f"Delete Allocation File {i+1}"):
-                delete_uploaded_file(process_key, "alloc")
-        with delete_col[1]:
-            if st.button("🗑", key=f"del_curr_{i}", help=f"Delete Paid Current File {i+1}"):
-                delete_uploaded_file(process_key, "paid_curr")
-        with delete_col[2]:
-            if st.button("🗑", key=f"del_prev_{i}", help=f"Delete Paid Previous File {i+1}"):
-                delete_uploaded_file(process_key, "paid_prev")
-
-        if alloc: save_uploaded_file(alloc, process_key, "alloc")
-        if paid_curr: save_uploaded_file(paid_curr, process_key, "paid_curr")
-        if paid_prev: save_uploaded_file(paid_prev, process_key, "paid_prev")
-
-        uploads = session.get("uploads", {}).get(process_key, {})
-        if not alloc and uploads.get("alloc"): alloc = uploads["alloc"]
-        if not paid_curr and uploads.get("paid_curr"): paid_curr = uploads["paid_curr"]
-        if not paid_prev and uploads.get("paid_prev"): paid_prev = uploads["paid_prev"]
-
-        uploaded_files[process_key] = {
-            "name": default_name,
-            "alloc": alloc,
-            "paid_curr": paid_curr,
-            "paid_prev": paid_prev
-        }
-
-# 📈 Reports Section
-st.markdown("## 📈 Reports Section")
-below_target_threshold = 75
-
-for process_key, files in uploaded_files.items():
-    name = files["name"]
-    alloc_file = files.get("alloc")
-    paid_file = files.get("paid_curr")
-
-    if not alloc_file or not paid_file:
-        st.warning(f"⚠️ Skipping {name} - Allocation or Paid file missing.")
-        continue
-
+# 👤 Agent Performance Pivot Table
+st.markdown("## 👤 Agent Performance Pivot Table")
+if "agent_file" in st.session_state:
     try:
-        df_alloc = pd.read_excel(alloc_file)
-        df_paid = pd.read_excel(paid_file)
-        df_alloc = clean_headers(df_alloc)
-        df_paid = clean_headers(df_paid)
+        df_agent = pd.read_excel(st.session_state["agent_file"])
+        df_agent = clean_headers(df_agent)
 
-        alloc_col = correct_column(df_alloc, ALLOC_COLUMNS)
-        paid_col = correct_column(df_paid, PAID_COLUMNS)
-        agent_col_alloc = correct_column(df_alloc, AGENT_COLUMNS)
-        agent_col_paid = correct_column(df_paid, AGENT_COLUMNS)
+        from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
 
-        if not alloc_col or not paid_col:
-            st.warning(f"❌ Could not find required columns in {name}.")
-            continue
+        pivot_key = "agent_pivot_settings"
+        saved_grid = session.get(pivot_key)
 
-        alloc_summary = df_alloc.groupby(agent_col_alloc).agg(
-            Target_Amount=(alloc_col, "sum"),
-            Allocation_Count=(alloc_col, "count")
-        ).reset_index()
+        gb = GridOptionsBuilder.from_dataframe(df_agent)
 
-        paid_summary = df_paid.groupby(agent_col_paid).agg(
-            Paid_Amount=(paid_col, "sum"),
-            Paid_Count=(paid_col, "count")
-        ).reset_index()
+        for col in df_agent.columns:
+            if pd.api.types.is_numeric_dtype(df_agent[col]):
+                gb.configure_column(col, type=["numericColumn", "numberColumnFilter", "customNumericFormat"], aggFunc='sum')
+            else:
+                gb.configure_column(col, rowGroup=True, enableRowGroup=True, enablePivot=True, enableValue=True)
 
-        merged = pd.merge(alloc_summary, paid_summary, left_on=agent_col_alloc, right_on=agent_col_paid, how="outer").fillna(0)
-        merged["Recovery %"] = (merged["Paid_Amount"] / merged["Target_Amount"] * 100).round(2)
-        merged = merged.rename(columns={agent_col_alloc: "Agent"})
+        gb.configure_default_column(filter=True, editable=True, groupable=True)
+        gb.configure_side_bar()
+        gb.configure_selection("multiple", use_checkbox=True)
 
-        st.markdown(f"### 📌 Summary for `{name}`")
-        st.dataframe(merged)
+        # Custom field: Paid % = paid / allocation
+        paid_col = correct_column(df_agent, PAID_COLUMNS)
+        alloc_col = correct_column(df_agent, ALLOC_COLUMNS)
+        if paid_col and alloc_col and "paid_percent" not in df_agent.columns:
+            df_agent["paid_percent"] = (df_agent[paid_col] / df_agent[alloc_col]) * 100
 
-        st.plotly_chart(px.bar(merged, x="Agent", y=["Target_Amount", "Paid_Amount"], barmode="group", title=f"{name} - Amount Comparison"), use_container_width=True)
-        st.plotly_chart(px.bar(merged, x="Agent", y=["Allocation_Count", "Paid_Count"], barmode="group", title=f"{name} - Count Comparison"), use_container_width=True)
+        # Conditional formatting
+        highlight_low_recovery = JsCode("""
+            function(params) {
+                if (params.colDef.field === 'recovery' && params.value < 1000) {
+                    return {'backgroundColor': '#ffe6e6'};
+                }
+            }
+        """)
+        if "recovery" in df_agent.columns:
+            gb.configure_column("recovery", cellStyle=highlight_low_recovery)
 
-        # Daily Trend
-        date_col = correct_column(df_paid, DATE_COLUMNS)
-        if date_col:
-            df_paid[date_col] = pd.to_datetime(df_paid[date_col], errors='coerce')
-            df_paid['payment_date_only'] = df_paid[date_col].dt.date
-            trend_curr = df_paid.groupby('payment_date_only')[paid_col].sum().reset_index()
-            trend_curr.columns = ['Date', 'Current Paid']
+        grid_options = gb.build()
 
-            trend_merged = trend_curr.copy()
-            paid_prev_file = files.get("paid_prev")
-            if paid_prev_file:
-                df_prev = pd.read_excel(paid_prev_file)
-                df_prev = clean_headers(df_prev)
-                prev_paid_col = correct_column(df_prev, PAID_COLUMNS)
-                prev_date_col = correct_column(df_prev, DATE_COLUMNS)
-                if prev_paid_col and prev_date_col:
-                    df_prev[prev_date_col] = pd.to_datetime(df_prev[prev_date_col], errors='coerce')
-                    df_prev['payment_date_only'] = df_prev[prev_date_col].dt.date
-                    trend_prev = df_prev.groupby('payment_date_only')[prev_paid_col].sum().reset_index()
-                    trend_prev.columns = ['Date', 'Previous Paid']
-                    trend_merged = pd.merge(trend_curr, trend_prev, on='Date', how='outer').fillna(0)
+        if saved_grid:
+            grid_options.update(saved_grid)
 
-            trend_merged = trend_merged.sort_values("Date")
-            fig_trend = px.line(trend_merged, x="Date", y=["Current Paid", "Previous Paid"], title=f"{name} - Daily Payment Trend")
-            st.plotly_chart(fig_trend, use_container_width=True)
+        st.subheader("📌 Drag columns to pivot/group/aggregate")
+        grid_return = AgGrid(
+            df_agent,
+            gridOptions=grid_options,
+            enable_enterprise_modules=True,
+            allow_unsafe_jscode=True,
+            update_mode="MODEL_CHANGED",
+            height=500,
+            fit_columns_on_grid_load=True
+        )
 
-        below_target = merged[merged["Recovery %"] < below_target_threshold]
-        if not below_target.empty:
-            st.warning(f"🔻 Agents below {below_target_threshold}% recovery for {name}:")
-            st.dataframe(below_target[["Agent", "Recovery %"]])
+        edited_df = pd.DataFrame(grid_return["data"])
+        session[pivot_key] = grid_return["gridOptions"]
+        save_session(session)
+
+        # Visual chart (example)
+        st.markdown("### 📊 Recovery by Agent")
+        agent_col = correct_column(edited_df, AGENT_COLUMNS)
+        if agent_col and paid_col:
+            chart_df = edited_df.groupby(agent_col)[paid_col].sum().reset_index()
+            fig = px.bar(chart_df, x=agent_col, y=paid_col, title="Total Recovery by Agent")
+            st.plotly_chart(fig, use_container_width=True)
+
+        # Download
+        st.markdown("### 📤 Download Modified Table")
+        download_data = to_excel_download(edited_df)
+        st.download_button("⬇ Download as Excel", data=download_data, file_name="agent_performance_pivot.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
     except Exception as e:
-        st.error(f"⚠️ Error generating report for {name}: {e}")
+        st.warning(f"Error loading pivot table: {e}")
+        st.dataframe(df_agent)
+else:
+    st.info("📤 Please upload Agent Performance file from the sidebar to view pivot table.")
