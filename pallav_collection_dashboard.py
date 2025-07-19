@@ -1,4 +1,14 @@
 # ... [Keep all imports and functions as-is above this point] ...
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import os
+import json
+from datetime import datetime, timedelta
+from io import BytesIO
+from fpdf import FPDF
+import tempfile
 
 # Sidebar Tabs
 selected_tab = st.sidebar.radio("📂 Select Tab", ["Dashboard", "Agent Performance"])
