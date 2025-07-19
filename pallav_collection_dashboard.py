@@ -180,6 +180,24 @@ with st.sidebar:
     with agent_cols[1]:
         if st.button("🗑", key="delete_agent_file", help="Delete Agent File"):
             delete_agent_file()
+# 🔽 Show Pivot Output if available
+if "pivot_result" in st.session_state:
+    st.markdown("## 📈 Pivot Table Report Output")
+    st.dataframe(st.session_state["pivot_result"])
+
+    st.markdown("### 🧾 Interactive Grid")
+    gb = GridOptionsBuilder.from_dataframe(st.session_state["pivot_result"].reset_index())
+    gb.configure_pagination()
+    gb.configure_default_column(editable=False, groupable=True)
+    gridOptions = gb.build()
+
+    AgGrid(
+        st.session_state["pivot_result"].reset_index(),
+        gridOptions=gridOptions,
+        enable_enterprise_modules=False,
+        allow_unsafe_jscode=True,
+        theme="blue"
+    )
 
     if agent_file:
         df_agent = pd.read_excel(agent_file)
