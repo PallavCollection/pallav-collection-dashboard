@@ -180,24 +180,6 @@ with st.sidebar:
     with agent_cols[1]:
         if st.button("🗑", key="delete_agent_file", help="Delete Agent File"):
             delete_agent_file()
-# 🔽 Show Pivot Output if available
-if "pivot_result" in st.session_state:
-    st.markdown("## 📈 Pivot Table Report Output")
-    st.dataframe(st.session_state["pivot_result"])
-
-    st.markdown("### 🧾 Interactive Grid")
-    gb = GridOptionsBuilder.from_dataframe(st.session_state["pivot_result"].reset_index())
-    gb.configure_pagination()
-    gb.configure_default_column(editable=False, groupable=True)
-    gridOptions = gb.build()
-
-    AgGrid(
-        st.session_state["pivot_result"].reset_index(),
-        gridOptions=gridOptions,
-        enable_enterprise_modules=False,
-        allow_unsafe_jscode=True,
-        theme="blue"
-    )
 
     if agent_file:
         df_agent = pd.read_excel(agent_file)
@@ -325,3 +307,69 @@ for process_key, files in uploaded_files.items():
 
     except Exception as e:
         st.error(f"⚠ Error generating report for {name}: {e}")
+# -----------------------------
+# 📊 General Pivot Table Section
+# -----------------------------
+from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
+
+st.markdown("---")
+st.header("📊 General Pivot Table Report")
+
+pivot_file = st.file_uploader("Upload any Excel file for Pivot Table Report", type=["xlsx"], key="pivot_any_file")
+
+if pivot_file:
+    try:
+        df_pivot_raw = pd.read_excel(pivot_file)
+        df_pivot_raw = clean_headers(df_pivot_raw)
+
+        st.markdown("### 🔍 Data Preview")
+        st.dataframe(df_pivot_raw.head(10))
+
+        all_columns = df_pivot_raw.columns.tolist()
+
+        with st.form("pivot_settings_form"):
+            st.markdown("### 🛠 Pivot Table Settings")
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                index_col = st.selectbox("Row (Index)", all_columns)
+            with col2:
+                column_col = st.selectbox("Column (Pivot)", all_columns)
+            with col3:
+                value_col = st.selectbox("Values (Aggregation)", all_columns)
+
+            agg_func = st.selectbox("Aggregation Function", ["sum", "mean", "count", "max", "min"])
+            submitted = st.form_submit_button("Generate Pivot")
+
+        if submitted:
+            pivot_result = pd.pivot_table(
+                df_pivot_raw,
+                index=index_col,
+                columns=column_col,
+                values=value_col,
+                aggfunc=agg_func,
+                fill_value=0,
+                margins=True,
+                margins_name="Total"
+            )
+
+            st.markdown("### 📊 Pivot Table Result")
+            st.dataframe(pivot_result)
+
+            st.markdown("### 🧾 Interactive Grid")
+            gb = GridOptionsBuilder.from_dataframe(pivot_result.reset_index())
+            gb.configure_pagination()
+            gb.configure_default_column(editable=False, groupable=True)
+            gb.configure_grid_options(domLayout='normal')
+            gridOptions = gb.build()
+
+            AgGrid(
+                pivot_result.reset_index(),
+                gridOptions=gridOptions,
+                enable_enterprise_modules=False,
+                allow_unsafe_jscode=True,
+                theme="blue"
+            )
+
+    except Exception as e:
+        st.error(f"Failed to generate pivot table: {e}")
