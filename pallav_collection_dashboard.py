@@ -137,6 +137,13 @@ if not last_refresh or datetime.now() - datetime.fromisoformat(last_refresh) > t
 st.title("📊 Pallav Collection Dashboard")
 st.caption(f"Last refreshed at {now.strftime('%Y-%m-%d %H:%M:%S')}")
 
+# 📤 Sidebar: Upload Agent Performance File
+st.sidebar.header("📤 Upload Agent Performance File")
+agent_file = st.sidebar.file_uploader("Upload Excel", type=["xlsx"], key="agent_file_upload")
+if agent_file:
+    st.session_state["agent_file"] = agent_file
+    st.toast("Agent performance file uploaded!", icon="✅")
+
 # 👤 Agent Performance Pivot Table
 st.markdown("## 👤 Agent Performance Pivot Table")
 if "agent_file" in st.session_state:
